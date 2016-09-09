@@ -170,6 +170,10 @@ public class SeatGrid {
      * @return Returns the no of columns.
      */
     public int getNoOfColumns() {
+        String methodName = "getNoOfColumns";
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(methodName);
+        }
         if (seats.length <= 0) {
             LOGGER.error("The no of rows should be greater than 0");
             throw new SeatingArrangementNotValidException("The no of rows should be greater than 0");

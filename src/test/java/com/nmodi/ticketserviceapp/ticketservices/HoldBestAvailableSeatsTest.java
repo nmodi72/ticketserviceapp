@@ -1,12 +1,8 @@
 package com.nmodi.ticketserviceapp.ticketservices;
 
-import com.nmodi.ticketserviceapp.client.Customer;
-import com.nmodi.ticketserviceapp.exception.SeatingArrangementNotValidException;
 import com.nmodi.ticketserviceapp.grid.Seat;
 import com.nmodi.ticketserviceapp.grid.SeatGrid;
-import com.nmodi.ticketserviceapp.grid.SeatStatus;
 import com.nmodi.ticketserviceapp.service.TicketService;
-import com.nmodi.ticketserviceapp.util.GenerateCustomerTestUtil;
 import com.nmodi.ticketserviceapp.util.SeatGridTestUtil;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,16 +65,16 @@ public class HoldBestAvailableSeatsTest {
      * List<Seat> holdBestAvailableSeats(SeatGrid sourceSeatGrid, Customer customer)
      */
     @Test
-    public void testHoldBestAvailableSeatsForSuccessScenario() {
-        List<Seat> availableSeats = ticketServiceImpl.holdBestAvailableSeats(sourceSeatGrid, new Customer(1L, 4, true));
+    public void testHoldBestAvailableSeatsForSuccessScenario() throws InterruptedException {
+        List<Seat> availableSeats = ticketServiceImpl.holdBestAvailableSeats(sourceSeatGrid, 4);
+        Thread.sleep(7000);
+//        List<Seat> expectedAvailableSeats = ticketServiceImpl.holdBestAvailableSeats(expectedSeatGrid, new Customer(1L, 4, true));
 
-        List<Seat> expectedAvailableSeats = ticketServiceImpl.holdBestAvailableSeats(expectedSeatGrid, new Customer(1L, 4, true));
-
-        for (Seat availableSeat: availableSeats) {
-            assertThat(availableSeat.getSeatStatus(), is(SeatStatus.RESERVED));
-        }
-        assertThat(ticketServiceImpl.findTotalNumberOfAvailableSeats(sourceSeatGrid), is(45));
-        assertThat(availableSeats, is(expectedAvailableSeats));
+//        for (Seat availableSeat: availableSeats) {
+//            assertThat(availableSeat.getSeatStatus(), is(SeatStatus.RESERVED));
+//        }
+        assertThat(ticketServiceImpl.findTotalNumberOfAvailableSeats(sourceSeatGrid), is(49));
+//        assertThat(availableSeats, is(expectedAvailableSeats));
     }
 
     /**
@@ -86,7 +82,7 @@ public class HoldBestAvailableSeatsTest {
      *List<Seat> holdBestAvailableSeats(SeatGrid sourceSeatGrid, Customer customer);
      */
     @Test
-    public void testHoldBestAvailableSeatsForLimitedSeatsAvailableScenario() {
+    public void testHoldBestAvailableSeatsForLimitedSeatsAvailableScenario() throws InterruptedException {
         SeatGrid actualSeatGrid = new SeatGrid(5, 5);
         int[][] seats = new int[][]{
                 {2, 2, 2, 2, 2},
@@ -96,9 +92,10 @@ public class HoldBestAvailableSeatsTest {
                 {2, 2, 2, 2, 0}};
         SeatGridTestUtil.setGridSeats(actualSeatGrid, seats);
 
-        List<Seat> availableSeats = ticketServiceImpl.holdBestAvailableSeats(actualSeatGrid, new Customer(1L, 4, true));
-
+        List<Seat> availableSeats = ticketServiceImpl.holdBestAvailableSeats(actualSeatGrid, 4);
         assertThat(ticketServiceImpl.findTotalNumberOfAvailableSeats(actualSeatGrid), is(0));
+        Thread.sleep(7000);
+        assertThat(ticketServiceImpl.findTotalNumberOfAvailableSeats(actualSeatGrid), is(4));
     }
 
 }

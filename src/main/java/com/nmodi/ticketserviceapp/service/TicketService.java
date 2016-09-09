@@ -1,6 +1,5 @@
 package com.nmodi.ticketserviceapp.service;
 
-import com.nmodi.ticketserviceapp.client.Customer;
 import com.nmodi.ticketserviceapp.grid.Seat;
 import com.nmodi.ticketserviceapp.grid.SeatGrid;
 
@@ -28,10 +27,10 @@ public interface TicketService {
      * This method is used to hold best available seats based on number of seats in request.
      *
      * @param sourceSeatGrid The source seat grid.
-     * @param customer The customer .
+     * @param requestedSeats The requested number of seats
      * @return The list of held seats
      */
-    List<Seat> holdBestAvailableSeats(SeatGrid sourceSeatGrid, Customer customer);
+    List<Seat> holdBestAvailableSeats(SeatGrid sourceSeatGrid, int requestedSeats);
 
     /**
      * This method is used to reserve the held seats.

@@ -1,6 +1,5 @@
 package com.nmodi.ticketserviceapp.service;
 
-import com.nmodi.ticketserviceapp.client.Customer;
 import com.nmodi.ticketserviceapp.dao.TicketHandlerDao;
 import com.nmodi.ticketserviceapp.exception.CustomerRequestNotValidException;
 import com.nmodi.ticketserviceapp.exception.ReservationRequestNotValidException;
@@ -8,11 +7,20 @@ import com.nmodi.ticketserviceapp.exception.SeatingArrangementNotValidException;
 import com.nmodi.ticketserviceapp.grid.Seat;
 import com.nmodi.ticketserviceapp.grid.SeatGrid;
 import com.nmodi.ticketserviceapp.grid.SeatStatus;
+import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class TicketServiceImpl implements TicketService {
 
@@ -23,6 +31,22 @@ public class TicketServiceImpl implements TicketService {
 
     @Resource
     private TicketHandlerDao ticketHandlerDao;
+
+
+    private static final ExecutorService threadpool = Executors.newFixedThreadPool(Integer.MAX_VALUE);
+
+
+    @Getter
+    @Setter
+    private SeatGrid seatGridHeld;
+
+    @Getter
+    @Setter
+    private List<Seat> seatListHeld;
+//    private List<Seat> seatListHeld = Collections.synchronizedList(new ArrayList<Seat>());
+    @Getter
+    @Setter
+    private boolean flag = false;
 
     /**
      * This method is used to get all available seats at list.
@@ -61,81 +85,38 @@ public class TicketServiceImpl implements TicketService {
      * This method is used to hold best available seats based on number of seats in request.
      *
      * @param sourceSeatGrid The source seat grid.
-     * @param customer The customer with requirement.
+     * @param requestedSeats The requested number of seats
      * @return The list of held seats, empty list in case none are hold
      */
     @Override
-    public List<Seat> holdBestAvailableSeats(SeatGrid sourceSeatGrid, Customer customer) {
+    public List<Seat> holdBestAvailableSeats(SeatGrid sourceSeatGrid, int requestedSeats) {
         if (sourceSeatGrid.getNoOfRows() <= 0 || sourceSeatGrid.getNoOfColumns() <= 0) {
             throw new SeatingArrangementNotValidException(
                     "Seating arrangement for the venue is not proper, the rows and columns must be greater than 0");
         }
-        if (customer == null || customer.getCustomerId() == 0) {
-            throw new CustomerRequestNotValidException("The customer can't be null");
-        }
-        if (customer.getRequestedNumberOfSeats() <= 0 ||
-                customer.getRequestedNumberOfSeats() > ticketHandlerDao.getAvailableSeatsAsList(sourceSeatGrid).size()) {
+        if (requestedSeats <= 0 ||
+                requestedSeats > ticketHandlerDao.getAvailableSeatsAsList(sourceSeatGrid).size()) {
             throw new CustomerRequestNotValidException("Request order to hold seats must be valid, total available seats are: "
                     + ticketHandlerDao.getAvailableSeatsAsList(sourceSeatGrid).size());
         }
         // best available hold seat
-        List<Seat> heldSeatList = ticketHandlerDao.getBestAvailableSeats(sourceSeatGrid, customer.getRequestedNumberOfSeats());
+        List<Seat> heldSeatList = ticketHandlerDao.getBestAvailableSeats(sourceSeatGrid, requestedSeats);
 
-        // if the response coming empty list, return ]
-        if(heldSeatList == null || heldSeatList.size() == 0) {
-            LOGGER.error("Response from hold seats operation is null or empty.");
-            return heldSeatList;
-        }
+        setSeatGridHeld(sourceSeatGrid);
+        setSeatListHeld(heldSeatList);
+        setFlag(true);
+        threadpool.submit(thread);
 
-        // processing fake reuqest from customer to reserve the held seats
-        if (customer.isCustomerInputAfterHoldingSeats()) {
-            heldSeatList = reserveHeldSeats(sourceSeatGrid, heldSeatList);
-        }
-
-        // Further process the seat to check, whether the status was changed to Reserved
-        // or make it available again after few second of time interval.
-        return callTimer(sourceSeatGrid, heldSeatList);
-    }
-
-    /**
-     * This method is used to observe that user committed for to reserve the held ticket.
-     * Otherwise, it will be made open/available again.
-     *
-     * @param venueSeats The source seat grid.
-     * @param heldSeatList The list of held seats.
-     * @return The list of held seats
-     */
-    private List<Seat> callTimer(final SeatGrid venueSeats, final List<Seat> heldSeatList) {
-
-        //create runnable thread to check whether the seat is still on hold, if so then convert
-        Runnable runnableThread = new Runnable() {
-            int counter = 0;
-            public void run() {
-                while (true) {
-                    try {
-                        System.out.println("Timer is at: " + counter);
-                        if (counter > 5) {
-                            for (Seat seat: heldSeatList) {
-                                if (seat.getSeatStatus().equals(SeatStatus.HOLD)) {
-                                    venueSeats.setSeatStatus(seat.getRow(), seat.getColumn(), SeatStatus.OPEN);
-                                    heldSeatList.remove(heldSeatList.indexOf(seat));
-//                                    heldSeatList.set(heldSeatList.indexOf(seat), venueSeats.getSeat(seat.getRow(), seat.getColumn()));
-                                }
-                            }
-                            break;
-                        }
-                        Thread.sleep(1000);
-                        counter++;
-                    } catch (InterruptedException ex) {
-                        ex.printStackTrace();
-                    }
-                }
-            }
-        };
-        runnableThread.run();
         return heldSeatList;
     }
 
+    /**
+     * This method is used to reserve the held seats.
+     *
+     * @param sourceSeatGrid The source seat grid/the venue
+     * @param heldSeatList The held seats as list
+     * @return The list of held seats, empty in case none are reserved
+     */
     @Override
     public List<Seat> reserveHeldSeats(SeatGrid sourceSeatGrid, List<Seat> heldSeatList) {
 
@@ -151,5 +132,44 @@ public class TicketServiceImpl implements TicketService {
             heldSeatList.set(heldSeatList.indexOf(seat), sourceSeatGrid.getSeat(seat.getRow(), seat.getColumn()));
         }
         return heldSeatList;
+    }
+
+    /**
+     * The thread instance to verify whether the seat is reserved after 3 sec of interval.
+     *
+     */
+    Thread thread = new Thread( new Runnable() {
+        int counter = 0;
+        public void run() {
+            while (true) {
+                System.out.println("Runnable called");
+//                if (flag) {
+                    try {
+                        System.out.println("Timer is at: " + counter);
+                        if (counter > 3) {
+                            for (Seat seat : seatListHeld) {
+                                if (seat.getSeatStatus().equals(SeatStatus.HOLD)) {
+                                    seatGridHeld.setSeatStatus(seat.getRow(), seat.getColumn(), SeatStatus.OPEN);
+                                    seatListHeld.set(seatListHeld.indexOf(seat), seatGridHeld.getSeat(seat.getRow(), seat.getColumn()));
+                                }
+                            }
+                            flag = false;
+                        }
+                        Thread.sleep(1000);
+                        counter++;
+                    } catch (InterruptedException ex) {
+                        ex.printStackTrace();
+                    }
+//                } else {
+//                    break;
+//                }
+                counter = flag == false ? 0 : counter;
+            }
+        }
+    });
+
+    @PreDestroy
+    public void reset() {
+        threadpool.shutdown();
     }
 }
