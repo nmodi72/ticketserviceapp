@@ -97,7 +97,6 @@ public class SeatGrid {
      * @return The SeatStatus enum value
      */
     public SeatStatus getSeatStatus(int row, int column) {
-        LOGGER.debug("Retrieving seat status for {} row and {} column", row, column);
         if (row >= seats.length || column >= seats[0].length || row < 0 || column < 0) {
             LOGGER.error("The no of rows and no of columns must be requested in valid limits. {} X {}",
                     seats.length, seats[0].length);
@@ -126,7 +125,6 @@ public class SeatGrid {
      * @return The new seat object
      */
     public Seat getSeat(int row, int column) {
-        LOGGER.debug("Retrieving seat for {} row and {} column", row, column);
         if (row >= seats.length || column >= seats[0].length || row < 0 || column < 0) {
             LOGGER.error("The no of rows and no of columns must be requested in valid limits." +
                     seats.length + "X" + seats[0].length);

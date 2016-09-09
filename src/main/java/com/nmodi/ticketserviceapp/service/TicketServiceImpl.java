@@ -29,21 +29,34 @@ public class TicketServiceImpl implements TicketService {
      */
     private final Logger LOGGER = LoggerFactory.getLogger(TicketServiceImpl.class);
 
+    /**
+     * The ticket handler dao
+     */
     @Resource
     private TicketHandlerDao ticketHandlerDao;
 
-
+    /**
+     * The executor servcie
+     */
     private static final ExecutorService threadpool = Executors.newFixedThreadPool(Integer.MAX_VALUE);
 
-
+    /**
+     * The held seat grid
+     */
     @Getter
     @Setter
     private SeatGrid seatGridHeld;
 
+    /**
+     * The held seat list
+     */
     @Getter
     @Setter
     private List<Seat> seatListHeld;
-//    private List<Seat> seatListHeld = Collections.synchronizedList(new ArrayList<Seat>());
+
+    /**
+     * The flag
+     */
     @Getter
     @Setter
     private boolean flag = false;
@@ -142,34 +155,28 @@ public class TicketServiceImpl implements TicketService {
         int counter = 0;
         public void run() {
             while (true) {
-                System.out.println("Runnable called");
-//                if (flag) {
-                    try {
-                        System.out.println("Timer is at: " + counter);
-                        if (counter > 3) {
-                            for (Seat seat : seatListHeld) {
-                                if (seat.getSeatStatus().equals(SeatStatus.HOLD)) {
-                                    seatGridHeld.setSeatStatus(seat.getRow(), seat.getColumn(), SeatStatus.OPEN);
-                                    seatListHeld.set(seatListHeld.indexOf(seat), seatGridHeld.getSeat(seat.getRow(), seat.getColumn()));
-                                }
+                try {
+                    if (counter > 3) {
+                        for (Seat seat : seatListHeld) {
+                            if (seat.getSeatStatus().equals(SeatStatus.HOLD)) {
+                                seatGridHeld.setSeatStatus(seat.getRow(), seat.getColumn(), SeatStatus.OPEN);
+                                seatListHeld.set(seatListHeld.indexOf(seat), seatGridHeld.getSeat(seat.getRow(), seat.getColumn()));
                             }
-                            flag = false;
                         }
-                        Thread.sleep(1000);
-                        counter++;
-                    } catch (InterruptedException ex) {
-                        ex.printStackTrace();
+                        flag = false;
                     }
-//                } else {
-//                    break;
-//                }
+                    Thread.sleep(1000);
+                    counter++;
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
+                }
                 counter = flag == false ? 0 : counter;
             }
         }
     });
 
     @PreDestroy
-    public void reset() {
+    public void preDestroy() {
         threadpool.shutdown();
     }
 }

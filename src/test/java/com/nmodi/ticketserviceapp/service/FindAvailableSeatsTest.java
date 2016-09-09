@@ -1,9 +1,8 @@
-package com.nmodi.ticketserviceapp.ticketservices;
+package com.nmodi.ticketserviceapp.service;
 
 import com.nmodi.ticketserviceapp.exception.SeatingArrangementNotValidException;
 import com.nmodi.ticketserviceapp.grid.Seat;
 import com.nmodi.ticketserviceapp.grid.SeatGrid;
-import com.nmodi.ticketserviceapp.service.TicketService;
 import com.nmodi.ticketserviceapp.util.SeatGridTestUtil;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,7 +19,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * This unit test is to verify whether find available seats are working as required.
+ * This test is to verify whether find available seats are working as required.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration("classpath:/applicationContext-test.xml")
