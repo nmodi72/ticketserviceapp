@@ -12,15 +12,11 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public class TicketServiceImpl implements TicketService {
 
@@ -54,12 +50,9 @@ public class TicketServiceImpl implements TicketService {
     @Setter
     private List<Seat> seatListHeld;
 
-    /**
-     * The flag
-     */
     @Getter
     @Setter
-    private boolean flag = false;
+    private boolean checkHeldSeats = false;
 
     /**
      * This method is used to get all available seats at list.
@@ -117,7 +110,7 @@ public class TicketServiceImpl implements TicketService {
 
         setSeatGridHeld(sourceSeatGrid);
         setSeatListHeld(heldSeatList);
-        setFlag(true);
+        setCheckHeldSeats(true);
         threadpool.submit(thread);
 
         return heldSeatList;
@@ -163,14 +156,14 @@ public class TicketServiceImpl implements TicketService {
                                 seatListHeld.set(seatListHeld.indexOf(seat), seatGridHeld.getSeat(seat.getRow(), seat.getColumn()));
                             }
                         }
-                        flag = false;
+                        checkHeldSeats = false;
                     }
                     Thread.sleep(1000);
                     counter++;
                 } catch (InterruptedException ex) {
                     ex.printStackTrace();
                 }
-                counter = flag == false ? 0 : counter;
+                counter = checkHeldSeats == false ? 0 : counter;
             }
         }
     });
