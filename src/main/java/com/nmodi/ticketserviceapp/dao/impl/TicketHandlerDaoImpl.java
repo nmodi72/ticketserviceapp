@@ -41,35 +41,35 @@ public class TicketHandlerDaoImpl implements TicketHandlerDao {
      * This method is used to find and hold the particular seat for given venue.
      *
      * @param sourceSeatGrid The source seat grid.
-     * @param numberOfRequestedSeats The number of seats coming in request.
+     * @param requiredSeatCount The number of seats coming in request.
      * @return The list of held seats
      */
     @Override
-    public List<Seat> getBestAvailableSeats(SeatGrid sourceSeatGrid, int numberOfRequestedSeats) {
+    public List<Seat> getBestAvailableSeats(SeatGrid sourceSeatGrid, int requiredSeatCount) {
 
         if (sourceSeatGrid == null) {
             throw new SeatingArrangementNotValidException("source seat grid can not be null.");
         }
-        if (numberOfRequestedSeats == 0) {
+        if (requiredSeatCount == 0) {
             throw new CustomerRequestNotValidException("The number of seats in request can not be 0");
         }
         List<Seat> availableSeats = new ArrayList<Seat>();
         int heldSeats = 0;
-        while (heldSeats < numberOfRequestedSeats ) {
+        while (heldSeats < requiredSeatCount) {
             int highestSeatSlot = 0;
             int bestRowToAccomodateGuest = Integer.MIN_VALUE;
             // assign the best seats if available, the far is better
             for (int row = (sourceSeatGrid.getNoOfRows() - 1); row >= 0; row--) {
-                List<Seat> initiallyAssignedSeatList = issueSeats(sourceSeatGrid, row, numberOfRequestedSeats);
+                List<Seat> initiallyAssignedSeatList = assignSeats(sourceSeatGrid, row, requiredSeatCount);
                 availableSeats.addAll(initiallyAssignedSeatList);
                 heldSeats = heldSeats + initiallyAssignedSeatList.size();
                 // when request is fulfilled
-                if(heldSeats == numberOfRequestedSeats) {
+                if(heldSeats == requiredSeatCount) {
                     return availableSeats;
                 }
                 // based on the request, find best suitable row and place if the request is not easily fulfil
                 // E.g. if 5 seats are requested and seats are available in 1, 2 and 3 blocks then it should fulfil 3 first.
-                List<Integer> slotsAvailableByRow = getSeatsByClusterByRow(sourceSeatGrid, row);
+                List<Integer> slotsAvailableByRow = getSeatCountsInGroupsByRow(sourceSeatGrid, row);
                 for (Integer slotAvailable : slotsAvailableByRow) {
                     if (slotAvailable > highestSeatSlot) {
                         highestSeatSlot = slotAvailable;
@@ -78,11 +78,11 @@ public class TicketHandlerDaoImpl implements TicketHandlerDao {
                 }
             }
             // Still some s\eats are not issued
-            if (heldSeats != numberOfRequestedSeats) {
+            if (heldSeats != requiredSeatCount) {
                 if (bestRowToAccomodateGuest != Integer.MIN_VALUE) {
-                    int remainingSeats = numberOfRequestedSeats - heldSeats;
+                    int remainingSeats = requiredSeatCount - heldSeats;
                     highestSeatSlot = remainingSeats < highestSeatSlot ? remainingSeats : highestSeatSlot;
-                    List<Seat> bestAssignedSeatList = issueSeats(sourceSeatGrid, bestRowToAccomodateGuest, highestSeatSlot);
+                    List<Seat> bestAssignedSeatList = assignSeats(sourceSeatGrid, bestRowToAccomodateGuest, highestSeatSlot);
                     availableSeats.addAll(bestAssignedSeatList);
                     heldSeats = heldSeats + bestAssignedSeatList.size();
                 }
@@ -92,101 +92,101 @@ public class TicketHandlerDaoImpl implements TicketHandlerDao {
     }
 
     /**
-     * This method is used to issue the seats to guest.
+     * This method is used to assign the seats.
      *
      * @param sourceSeatGrid The source seat grid.
-     * @param numberOfRequestedSeats The number of seats coming in request.
+     * @param requiredSeatCount The number of seats coming in request.
      * @return The list of held seats
      */
-    private static List<Seat> issueSeats(SeatGrid sourceSeatGrid, int row, int numberOfRequestedSeats) {
-        // a list which includes number of seats available together in cluster
-        List<Integer> seatClusterSets = getSeatsByClusterByRow(sourceSeatGrid, row);
-        if (seatClusterSets.contains(numberOfRequestedSeats)) {
-            return getNeighborSeats(sourceSeatGrid, row, numberOfRequestedSeats, 0);
+    private static List<Seat> assignSeats(SeatGrid sourceSeatGrid, int row, int requiredSeatCount) {
+        // a list which includes number of seats available together in group
+        List<Integer> seatGroup = getSeatCountsInGroupsByRow(sourceSeatGrid, row);
+        if (seatGroup.contains(requiredSeatCount)) {
+            return findAndHoldSeatsNextToEachOther(sourceSeatGrid, row, requiredSeatCount, 0);
         } else {
             // maximum suitable seat, based on the number of requested seats
             // For example, if a person wants to request only single seat and a row has 2, 3 adn 4 seat blocks available than
-            // the person should be given a ticket from 2 seat blocks (based on difference between numberOfRequestedSeats and blockSize)
+            // the person should be given a ticket from 2 seat blocks (based on difference between requiredSeatCount and blockSize)
             int maxSuitableSeat = Integer.MAX_VALUE;
-            for (Integer seatBlockSize: seatClusterSets) {
-                int differenceInSeatBlockAndRequestedSeat = seatBlockSize - numberOfRequestedSeats;
+            for (Integer seatBlockSize: seatGroup) {
+                int differenceInSeatBlockAndRequestedSeat = seatBlockSize - requiredSeatCount;
                 maxSuitableSeat = (differenceInSeatBlockAndRequestedSeat > 0) &&
                         (differenceInSeatBlockAndRequestedSeat < maxSuitableSeat)? seatBlockSize : maxSuitableSeat;
             }
             // check whether the maxSuitableSeat is updated and able to allot requested seats
-            if ((maxSuitableSeat != Integer.MAX_VALUE) && (maxSuitableSeat > numberOfRequestedSeats)) {
-                return getNeighborSeats(sourceSeatGrid, row, numberOfRequestedSeats, maxSuitableSeat);
+            if ((maxSuitableSeat != Integer.MAX_VALUE) && (maxSuitableSeat > requiredSeatCount)) {
+                return findAndHoldSeatsNextToEachOther(sourceSeatGrid, row, requiredSeatCount, maxSuitableSeat);
             }
         }
         return new ArrayList<Seat>();
     }
 
     /**
-     * This method is used to get the seat blocks for given row.
-     *
-     * @param sourceSeatGrid The source seat grid.
-     * @param row The row number.
-     * @return The list of integer, which gives the available seat blocks in specific row
-     */
-    private static List<Integer> getSeatsByClusterByRow(SeatGrid sourceSeatGrid, int row) {
-        List<Integer> seatCluster = new ArrayList<Integer>();
-        for (int seatNumber = 0; seatNumber < sourceSeatGrid.getNoOfColumns(); seatNumber++) {
-            if (sourceSeatGrid.getSeatStatus(row, seatNumber).equals(SeatStatus.OPEN)) {
-                int seatClusterCount = 1;
-                int nextSeat = (seatNumber + 1) < sourceSeatGrid.getNoOfColumns() ? seatNumber + 1 : -1;
-                while (nextSeat > 0 && sourceSeatGrid.getSeatStatus(row, nextSeat).equals(SeatStatus.OPEN)) {
-                    seatClusterCount++;
-                    nextSeat = (nextSeat + 1) < sourceSeatGrid.getNoOfColumns() ? nextSeat + 1 : -1;
-                }
-                seatCluster.add(seatClusterCount);
-                seatNumber = seatNumber + seatClusterCount;
-            }
-        }
-        return seatCluster;
-    }
-
-    /**
      * This method is used to book/hold the seats, which also takes a look for
-     * availability of neighbor seats for specific request.
+     * availability of neighbor seats.
      *
      * @param sourceSeatGrid The source seat grid.
      * @param row The row number.
-     * @param numberOfRequiredSeats The number of required seats
+     * @param requiredSeatCount The number of required seats
      * @param highestAvailableSeat The highest available seat from which the seat should be given.
      * @return The list of integer, which gives the available seat blocks in specific row
      */
-    private static List<Seat> getNeighborSeats(SeatGrid sourceSeatGrid, int row, int numberOfRequiredSeats, int highestAvailableSeat) {
+    private static List<Seat> findAndHoldSeatsNextToEachOther(SeatGrid sourceSeatGrid, int row, int requiredSeatCount, int highestAvailableSeat) {
         List<Seat> seats = new ArrayList<Seat>();
         for (int seatNumber = 0; seatNumber < sourceSeatGrid.getNoOfColumns(); seatNumber++) {
             if (sourceSeatGrid.getSeatStatus(row, seatNumber).equals(SeatStatus.OPEN)) {
-                int seatClusterCount = 1;
+                int seatGroupCount = 1;
                 int nextSeat = (seatNumber + 1) < sourceSeatGrid.getNoOfColumns() ? seatNumber + 1 : -1;
                 while (nextSeat > 0 && sourceSeatGrid.getSeatStatus(row, nextSeat).equals(SeatStatus.OPEN)) {
-                    seatClusterCount++;
+                    seatGroupCount++;
                     nextSeat = (nextSeat + 1) < sourceSeatGrid.getNoOfColumns() ? nextSeat + 1 : -1;
                 }
-                if (seatClusterCount == numberOfRequiredSeats) {
-                    while (numberOfRequiredSeats != 0) {
+                if (seatGroupCount == requiredSeatCount) {
+                    while (requiredSeatCount != 0) {
                         // Hold specific seat
                         sourceSeatGrid.setSeatStatus(row, seatNumber, SeatStatus.HOLD);
                         seats.add(sourceSeatGrid.getSeat(row, seatNumber++));
-                        numberOfRequiredSeats--;
+                        requiredSeatCount--;
                     }
                     return seats;
-                } else if ((seatClusterCount == highestAvailableSeat) &&
-                        (seatClusterCount > numberOfRequiredSeats)) {
-                    while (numberOfRequiredSeats != 0) {
+                } else if ((seatGroupCount == highestAvailableSeat) &&
+                        (seatGroupCount > requiredSeatCount)) {
+                    while (requiredSeatCount != 0) {
                         // Hold specific seat
                         sourceSeatGrid.setSeatStatus(row, seatNumber, SeatStatus.HOLD);
                         seats.add(sourceSeatGrid.getSeat(row, seatNumber++));
-                        numberOfRequiredSeats--;
+                        requiredSeatCount--;
                     }
                     return seats;
                 } else {
-                    seatNumber = seatNumber + seatClusterCount;
+                    seatNumber = seatNumber + seatGroupCount;
                 }
             }
         }
         return seats;
+    }
+
+    /**
+     * This method is used to get the seat count by row.
+     *
+     * @param sourceSeatGrid The source seat grid.
+     * @param row The row number.
+     * @return The list of integer, which gives the available seat blocks in specific row
+     */
+    private static List<Integer> getSeatCountsInGroupsByRow(SeatGrid sourceSeatGrid, int row) {
+        List<Integer> seatGroup = new ArrayList<Integer>();
+        for (int seatNumber = 0; seatNumber < sourceSeatGrid.getNoOfColumns(); seatNumber++) {
+            if (sourceSeatGrid.getSeatStatus(row, seatNumber).equals(SeatStatus.OPEN)) {
+                int seatGroupCount = 1;
+                int nextSeat = (seatNumber + 1) < sourceSeatGrid.getNoOfColumns() ? seatNumber + 1 : -1;
+                while (nextSeat > 0 && sourceSeatGrid.getSeatStatus(row, nextSeat).equals(SeatStatus.OPEN)) {
+                    seatGroupCount++;
+                    nextSeat = (nextSeat + 1) < sourceSeatGrid.getNoOfColumns() ? nextSeat + 1 : -1;
+                }
+                seatGroup.add(seatGroupCount);
+                seatNumber = seatNumber + seatGroupCount;
+            }
+        }
+        return seatGroup;
     }
 }

@@ -78,7 +78,6 @@ public class SeatGrid {
      * @param seatStatus The status of the seat to set.
      */
     public void setSeatStatus(int row, int column, SeatStatus seatStatus) {
-        LOGGER.debug("Setting seat status for {} row and {} column to {}", row, column, seatStatus);
         if (row >= seats.length || column >= seats[0].length || row < 0 || column < 0) {
             LOGGER.error("The no of rows and no of columns must be updated to valid limits. {} X {}",
                     seats.length, seats[0].length);
@@ -168,10 +167,6 @@ public class SeatGrid {
      * @return Returns the no of columns.
      */
     public int getNoOfColumns() {
-        String methodName = "getNoOfColumns";
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(methodName);
-        }
         if (seats.length <= 0) {
             LOGGER.error("The no of rows should be greater than 0");
             throw new SeatingArrangementNotValidException("The no of rows should be greater than 0");
